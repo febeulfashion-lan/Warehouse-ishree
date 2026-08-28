@@ -442,7 +442,14 @@ function renderAuthArea(){
 }
 window.renderAuthArea = renderAuthArea;
 
-function openAuthModal(){ document.getElementById('authModal').classList.add('open'); document.getElementById('authError').style.display='none'; }
+function openAuthModal(){
+  document.getElementById('authModal').classList.add('open');
+  document.getElementById('authError').style.display='none';
+  document.getElementById('auth_email').value = '';
+  document.getElementById('auth_password').value = '';
+  const btn = document.getElementById('authSubmitBtn');
+  btn.disabled = false; btn.textContent = 'Sign in';
+}
 function closeAuthModal(){ document.getElementById('authModal').classList.remove('open'); }
 
 function friendlyAuthError(code){
@@ -463,12 +470,23 @@ function submitAuth(){
   errEl.style.display='none';
   if(!email || !password){ errEl.textContent='Enter an email and password.'; errEl.style.display='block'; return; }
 
+  if(!window.__fb){
+    errEl.textContent = 'Still connecting to the sign-in service — please wait a second and try again.';
+    errEl.style.display='block';
+    return;
+  }
+
   const { auth, signInWithEmailAndPassword } = window.__fb;
+  const btn = document.getElementById('authSubmitBtn');
+  btn.disabled = true; btn.textContent = 'Signing in…';
 
   signInWithEmailAndPassword(auth, email, password).then(()=>{
+    btn.disabled = false; btn.textContent = 'Sign in';
+    document.getElementById('auth_password').value = '';
     closeAuthModal();
     renderAuthArea();
   }).catch((err)=>{
+    btn.disabled = false; btn.textContent = 'Sign in';
     errEl.textContent = friendlyAuthError(err.code);
     errEl.style.display='block';
   });
