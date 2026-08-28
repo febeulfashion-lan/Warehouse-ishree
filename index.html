@@ -263,6 +263,7 @@
       <div class="field"><label>Header colours</label>
         <div class="swatches"><input id="b_hdrBg" type="color" value="#fada2a"><input id="b_hdrFg" type="color" value="#c8281a"></div>
       </div>
+      <div id="b_templatePicker" style="margin-bottom:16px;"></div>
       <div class="field"><label>Tracking IDs (one per line)</label><textarea id="b_trackingInput" placeholder="SF3466826857F&#10;FMPC6441736626"></textarea></div>
       <div class="field"><label>Flyer IDs (one per line — same order)</label><textarea id="b_flyerInput" placeholder="GPNSB2B000790204&#10;GPNSB2B000790202"></textarea>
         <div class="hint">Line 1 of Tracking pairs with Line 1 of Flyer, and so on.</div>
@@ -316,6 +317,7 @@
       <div class="field"><label>Header colours</label>
         <div class="swatches"><input id="s_hdrBg" type="color" value="#fada2a"><input id="s_hdrFg" type="color" value="#c8281a"></div>
       </div>
+      <div id="s_templatePicker" style="margin-bottom:16px;"></div>
       <div class="field"><label>Starting serial No.</label><input id="s_startSerial" type="number" value="1" min="1"></div>
       <hr class="divider">
       <div class="field"><label>Boxes on each row (edit names, add/remove)</label></div>
@@ -858,6 +860,7 @@ function saveLetterheadTemplate(){
   setLetterheadTemplates(templates.slice(0,20));
   pushHistory('letterhead', 'Saved template — '+tpl.company);
   renderSavedLetterheads();
+  renderBarcodeTemplatePickers();
 }
 function renderSavedLetterheads(){
   const templates = getLetterheadTemplates();
@@ -876,7 +879,32 @@ function deleteLetterheadTemplate(id){
   const templates = getLetterheadTemplates().filter(x=>x.id!==id);
   setLetterheadTemplates(templates);
   renderSavedLetterheads();
+  renderBarcodeTemplatePickers();
 }
+
+/* ---- Reuse a saved company template inside the barcode tools ---- */
+function renderBarcodeTemplatePickers(){
+  const templates = getLetterheadTemplates();
+  ['b','s'].forEach(prefix=>{
+    const holder = document.getElementById(prefix+'_templatePicker');
+    if(!holder) return;
+    if(templates.length===0){
+      holder.innerHTML = '<div class="hint">No saved company templates yet — create one in the Letterhead tab, then reuse it here.</div>';
+      return;
+    }
+    holder.innerHTML = '<div class="hint" style="margin-bottom:6px;">Or use a saved company template:</div>' +
+      templates.map(t=>`<button class="btn secondary small" style="margin:2px 4px 2px 0;" onclick="applyTemplateToBarcodeTool('${prefix}', ${t.id})">${t.company}</button>`).join('');
+  });
+}
+function applyTemplateToBarcodeTool(prefix, id){
+  const t = getLetterheadTemplates().find(x=>x.id===id);
+  if(!t) return;
+  document.getElementById(prefix+'_headerText').value = t.company;
+  document.getElementById(prefix+'_hdrBg').value = t.accent || '#fada2a';
+  document.getElementById(prefix+'_hdrFg').value = '#ffffff';
+}
+renderBarcodeTemplatePickers();
+
 function loadLetterheadTemplate(id){
   const t = getLetterheadTemplates().find(x=>x.id===id);
   if(!t) return;
