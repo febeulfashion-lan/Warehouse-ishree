@@ -117,7 +117,7 @@
   .pair-block{ margin-bottom:18px; }
   .id-cols{ display:grid; grid-template-columns:1fr 1fr; gap:16px; }
   .id-col-label{ font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--blue); margin-bottom:6px; }
-  .id-col svg{ max-width:100%; height:auto; }
+  .id-col svg{ max-width:100%; width:100%; height:auto; shape-rendering:crispEdges; }
   .empty-note{ font-family:var(--mono); font-size:11px; color:#a39d89; }
   .page-footer{ margin-top:auto; padding-top:10px; font-family:var(--mono); font-size:9.5px; color:#a39d89; border-top:1px dashed var(--line); }
   .empty-state{ font-family:var(--mono); font-size:13px; color:#8a8471; padding:60px 10px; text-align:center; border:1px dashed var(--line); width:100%; }
@@ -185,6 +185,7 @@
     .sheet-grid{ display:block; gap:0; }
     .page-card{ box-shadow:none; border:none; page-break-after:always; width:100% !important; height:100% !important; }
     .page-card.deselected{ display:none !important; }
+    .id-col svg, .id-col svg rect{ shape-rendering:crispEdges !important; }
     .letterhead-preview{ box-shadow:none; border:none; width:100%; margin:0; }
     @page{ margin:0; }
   }
@@ -563,7 +564,16 @@ function makeBarcodeSVG(data){
   const svg = document.createElementNS(ns, "svg");
   if(!data){ return null; }
   try{
-    JsBarcode(svg, data, { format:"CODE128", lineColor:"#111111", width:2, height:50, fontSize:12, margin:4, textMargin:3 });
+    JsBarcode(svg, data, {
+      format:"CODE128",
+      lineColor:"#000000",   // pure black — max contrast, easier for scanners
+      width:3,                // thicker bars — more tolerant of smudging, ink bleed, low-res printers
+      height:80,               // taller bars — scanner has more margin for a crooked/angled scan
+      fontSize:14,
+      margin:10,                // bigger quiet zone (blank border) — many scan failures are from a cramped margin
+      textMargin:4
+    });
+    svg.querySelectorAll('rect').forEach(r=>{ r.setAttribute('shape-rendering','crispEdges'); });
   }catch(err){ return null; }
   return svg;
 }
