@@ -361,13 +361,41 @@
       <button id="tabSignUp" onclick="switchAuthTab('signup')">Sign up</button>
     </div>
     <h2 id="authTitle">Sign in</h2>
-    <div class="field"><label>Username</label><input id="auth_username" type="text"></div>
-    <div class="field"><label>Password</label><input id="auth_password" type="password"></div>
+    <div class="field"><label>Email</label><input id="auth_email" type="email" placeholder="you@example.com"></div>
+    <div class="field"><label>Password</label><input id="auth_password" type="password" placeholder="At least 6 characters"></div>
     <button class="btn block" id="authSubmitBtn" onclick="submitAuth()">Sign in</button>
     <div class="error-msg" id="authError"></div>
-    <div class="auth-note">This account only works on this device/browser — it's a local demo, not a secure cloud login yet. Ask about connecting real sign-in when you're ready.</div>
+    <div class="auth-note">Secured by Firebase Authentication — works across any device, once you sign in with the same email.</div>
   </div>
 </div>
+
+<!-- Firebase (real cross-device sign in) -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import {
+    getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
+    onAuthStateChanged, signOut as fbSignOut
+  } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyDwvNSpVH7uJEaBTRwZ_Fl7XO0AgWPnC44",
+    authDomain: "warehouse-ishree.firebaseapp.com",
+    projectId: "warehouse-ishree",
+    storageBucket: "warehouse-ishree.firebasestorage.app",
+    messagingSenderId: "480009053667",
+    appId: "1:480009053667:web:d9b04c8391c225a072acd6"
+  };
+
+  const fbApp = initializeApp(firebaseConfig);
+  const auth = getAuth(fbApp);
+
+  window.__fb = { auth, createUserWithEmailAndPassword, signInWithEmailAndPassword, fbSignOut };
+
+  onAuthStateChanged(auth, (user) => {
+    window.__fbCurrentUser = user;
+    if (window.renderAuthArea) window.renderAuthArea();
+  });
+</script>
 
 <script>
 /* ============================================================
@@ -403,11 +431,9 @@ function printView(name){
 }
 
 /* ============================================================
-   AUTH (local-only demo)
+   AUTH (Firebase Authentication — real, cross-device)
 ============================================================ */
-function getUsers(){ return JSON.parse(localStorage.getItem('lp_users')||'[]'); }
-function setUsers(u){ localStorage.setItem('lp_users', JSON.stringify(u)); }
-function getCurrentUser(){ return localStorage.getItem('lp_currentUser'); }
+function getCurrentUser(){ return window.__fbCurrentUser ? window.__fbCurrentUser.email : null; }
 
 function renderAuthArea(){
   const user = getCurrentUser();
@@ -418,6 +444,8 @@ function renderAuthArea(){
     area.innerHTML = '<button class="auth-btn" onclick="openAuthModal()">Sign in / Sign up</button>';
   }
 }
+window.renderAuthArea = renderAuthArea;
+
 function openAuthModal(){ document.getElementById('authModal').classList.add('open'); document.getElementById('authError').style.display='none'; }
 function closeAuthModal(){ document.getElementById('authModal').classList.remove('open'); }
 function switchAuthTab(tab){
@@ -429,31 +457,42 @@ function switchAuthTab(tab){
 }
 document.getElementById('authSubmitBtn').dataset.mode = 'signin';
 
-function simpleHash(s){ let h=0; for(let i=0;i<s.length;i++){ h=(h<<5)-h+s.charCodeAt(i); h|=0; } return h.toString(); }
+function friendlyAuthError(code){
+  const map = {
+    'auth/email-already-in-use':'That email is already registered — try signing in instead.',
+    'auth/invalid-email':'Enter a valid email address.',
+    'auth/weak-password':'Password should be at least 6 characters.',
+    'auth/user-not-found':'No account found with that email.',
+    'auth/wrong-password':'Incorrect password.',
+    'auth/invalid-credential':'Incorrect email or password.',
+    'auth/unauthorized-domain':"This website's domain isn't authorised in Firebase yet — add it under Authentication > Settings > Authorized domains."
+  };
+  return map[code] || 'Something went wrong. Please try again.';
+}
 
 function submitAuth(){
   const mode = document.getElementById('authSubmitBtn').dataset.mode;
-  const username = document.getElementById('auth_username').value.trim();
+  const email = document.getElementById('auth_email').value.trim();
   const password = document.getElementById('auth_password').value;
   const errEl = document.getElementById('authError');
   errEl.style.display='none';
-  if(!username || !password){ errEl.textContent='Enter a username and password.'; errEl.style.display='block'; return; }
+  if(!email || !password){ errEl.textContent='Enter an email and password.'; errEl.style.display='block'; return; }
 
-  const users = getUsers();
-  if(mode==='signup'){
-    if(users.find(u=>u.username===username)){ errEl.textContent='That username is already taken on this device.'; errEl.style.display='block'; return; }
-    users.push({username, hash: simpleHash(password)});
-    setUsers(users);
-    localStorage.setItem('lp_currentUser', username);
-  } else {
-    const found = users.find(u=>u.username===username);
-    if(!found || found.hash !== simpleHash(password)){ errEl.textContent='Incorrect username or password.'; errEl.style.display='block'; return; }
-    localStorage.setItem('lp_currentUser', username);
-  }
-  closeAuthModal();
-  renderAuthArea();
+  const { auth, createUserWithEmailAndPassword, signInWithEmailAndPassword } = window.__fb;
+  const action = mode==='signup'
+    ? createUserWithEmailAndPassword(auth, email, password)
+    : signInWithEmailAndPassword(auth, email, password);
+
+  action.then(()=>{
+    closeAuthModal();
+    renderAuthArea();
+  }).catch((err)=>{
+    errEl.textContent = friendlyAuthError(err.code);
+    errEl.style.display='block';
+  });
 }
-function signOut(){ localStorage.removeItem('lp_currentUser'); renderAuthArea(); }
+function signOut(){ window.__fb.fbSignOut(window.__fb.auth).then(renderAuthArea); }
+window.signOut = signOut;
 renderAuthArea();
 
 /* ============================================================
