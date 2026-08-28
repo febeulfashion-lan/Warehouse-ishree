@@ -308,7 +308,7 @@
 <!-- ===================== SINGLE / MULTI ===================== -->
 <div class="view" id="view-single">
   <h1>Single / Multi Barcode</h1>
-  <div class="sub">For quick jobs — 1 to 4 Tracking + Flyer pairs on one page, side by side.</div>
+  <div class="sub">For quick jobs — 1 to 4 rows on one page, side by side. Customise the boxes below.</div>
   <div class="tool-layout">
     <div class="panel">
       <div class="field"><label>Header text</label><input id="s_headerText" type="text" value="ISHREE"></div>
@@ -317,8 +317,16 @@
       </div>
       <div class="field"><label>Starting serial No.</label><input id="s_startSerial" type="number" value="1" min="1"></div>
       <hr class="divider">
+      <div class="field"><label>Boxes on each row (edit names, add/remove)</label></div>
+      <div id="s_fieldsManager"></div>
+      <div class="btn-row" style="margin-bottom:6px;">
+        <button class="btn secondary small" onclick="addField()">+ Add box</button>
+        <button class="btn small" onclick="saveFieldsTemplate()">Save layout</button>
+      </div>
+      <div class="hint" id="s_fieldsSavedNote"></div>
+      <hr class="divider">
       <div id="s_pairsHolder"></div>
-      <button class="btn secondary small block" onclick="addPair()" id="s_addPairBtn">+ Add pair (max 4)</button>
+      <button class="btn secondary small block" onclick="addPair()" id="s_addPairBtn">+ Add row (max 4)</button>
       <hr class="divider">
       <button class="btn block" onclick="generateSinglePreview()">Generate preview</button>
     </div>
@@ -331,7 +339,7 @@
         </div>
       </div>
       <div class="sheet-grid" id="s_sheetGrid">
-        <div class="empty-state">Fill in the pairs on the left, then click "Generate preview".</div>
+        <div class="empty-state">Fill in the rows on the left, then click "Generate preview".</div>
       </div>
     </div>
   </div>
@@ -640,18 +648,61 @@ function setAllBulk(state){
 }
 
 /* ============================================================
-   SINGLE / MULTI TOOL
+   SINGLE / MULTI TOOL — customisable fields
 ============================================================ */
+function getFieldsConfig(){
+  try{ return JSON.parse(localStorage.getItem('lp_single_fields')||'["TRACKING ID","FLYER ID"]'); }
+  catch(e){ return ["TRACKING ID","FLYER ID"]; }
+}
+function setFieldsConfig(f){ localStorage.setItem('lp_single_fields', JSON.stringify(f)); }
+
+let singleFields = getFieldsConfig();
 let pairCount = 2;
+
+function renderFieldsManager(){
+  const holder = document.getElementById('s_fieldsManager');
+  holder.innerHTML = singleFields.map((label,i)=>`
+    <div style="display:flex; gap:6px; margin-bottom:8px; align-items:center;">
+      <input type="text" value="${label.replace(/"/g,'&quot;')}" data-field-idx="${i}" class="s_field_label" style="flex:1; border:1px solid var(--line); background:var(--paper); padding:8px 9px; border-radius:3px; font-family:var(--sans); font-size:12.5px;">
+      ${singleFields.length>1 ? `<button class="remove-pair" onclick="removeField(${i})" title="Remove this box">✕</button>` : ''}
+    </div>
+  `).join('');
+  document.querySelectorAll('.s_field_label').forEach(inp=>{
+    inp.addEventListener('input', (e)=>{
+      const idx = parseInt(e.target.dataset.fieldIdx);
+      singleFields[idx] = e.target.value || ('BOX '+(idx+1));
+    });
+  });
+  document.getElementById('s_fieldsSavedNote').textContent = '';
+}
+function addField(){
+  singleFields.push('NEW BOX');
+  renderFieldsManager();
+  renderPairsHolder();
+}
+function removeField(idx){
+  if(singleFields.length<=1) return;
+  singleFields.splice(idx,1);
+  renderFieldsManager();
+  renderPairsHolder();
+}
+function saveFieldsTemplate(){
+  setFieldsConfig(singleFields);
+  document.getElementById('s_fieldsSavedNote').textContent = 'Saved — this layout will load next time.';
+}
+renderFieldsManager();
+
 function renderPairsHolder(){
   const holder = document.getElementById('s_pairsHolder');
   holder.innerHTML = '';
   for(let i=0;i<pairCount;i++){
     const row = document.createElement('div'); row.className='pair-row';
+    const fieldsHtml = singleFields.map((label,fi)=>`
+      <div class="field" style="margin-bottom:8px;"><label>${label}</label><input class="s_field_input" type="text" data-pair="${i}" data-field="${fi}"></div>
+    `).join('');
     row.innerHTML = `
-      <div class="pair-row-head"><span>Pair ${i+1}</span>${pairCount>1 ? `<button class="remove-pair" onclick="removePair(${i})">Remove</button>` : ''}</div>
-      <div class="field" style="margin-bottom:8px;"><label>Tracking ID</label><input class="s_tracking" type="text" data-idx="${i}"></div>
-      <div class="field" style="margin-bottom:0;"><label>Flyer ID</label><input class="s_flyer" type="text" data-idx="${i}"></div>
+      <div class="pair-row-head"><span>Row ${i+1}</span>${pairCount>1 ? `<button class="remove-pair" onclick="removePair(${i})">Remove</button>` : ''}</div>
+      ${fieldsHtml}
     `;
     holder.appendChild(row);
   }
@@ -662,16 +713,24 @@ function removePair(idx){ if(pairCount>1){ pairCount--; renderPairsHolder(); } }
 renderPairsHolder();
 
 let singleEntriesCache = [];
+let singleFieldsCache = [];
 
 function generateSinglePreview(){
-  const trackings = Array.from(document.querySelectorAll('.s_tracking')).map(i=>i.value.trim());
-  const flyers = Array.from(document.querySelectorAll('.s_flyer')).map(i=>i.value.trim());
-  const entries = trackings.map((t,i)=>({tracking:t, flyer:flyers[i]||''})).filter(e=>e.tracking||e.flyer);
+  const entries = [];
+  for(let p=0;p<pairCount;p++){
+    const values = singleFields.map((_,fi)=>{
+      const inp = document.querySelector(`.s_field_input[data-pair="${p}"][data-field="${fi}"]`);
+      return inp ? inp.value.trim() : '';
+    });
+    if(values.some(v=>v)) entries.push(values);
+  }
   singleEntriesCache = entries;
+  singleFieldsCache = singleFields.slice();
+
   const grid = document.getElementById('s_sheetGrid');
   grid.innerHTML = '';
   if(entries.length===0){
-    grid.innerHTML = '<div class="empty-state">Fill in at least one pair.</div>';
+    grid.innerHTML = '<div class="empty-state">Fill in at least one row.</div>';
     document.getElementById('s_countBadge').textContent = 'No preview yet.';
     return;
   }
@@ -685,11 +744,13 @@ function generateSinglePreview(){
   const hdr=document.createElement('div'); hdr.className='label-header';
   hdr.style.setProperty('--hdr-bg',hdrBg); hdr.style.setProperty('--hdr-fg',hdrFg); hdr.textContent=headerText;
   inner.appendChild(hdr);
-  entries.forEach((entry,i)=>{
+  entries.forEach((values,i)=>{
     const block=document.createElement('div'); block.className='pair-block';
     const serialLine=document.createElement('div'); serialLine.className='serial-line'; serialLine.textContent='Serial No: '+(startSerial+i); block.appendChild(serialLine);
     const cols=document.createElement('div'); cols.className='id-cols';
-    [['TRACKING ID',entry.tracking],['FLYER ID',entry.flyer]].forEach(([label,val])=>{
+    cols.style.gridTemplateColumns = `repeat(${singleFields.length}, 1fr)`;
+    singleFields.forEach((label,fi)=>{
+      const val = values[fi] || '';
       const col=document.createElement('div'); col.className='id-col';
       const lab=document.createElement('div'); lab.className='id-col-label'; lab.textContent=label; col.appendChild(lab);
       const svg=makeBarcodeSVG(val);
@@ -700,22 +761,35 @@ function generateSinglePreview(){
   });
   inner.appendChild(pageFooter());
   card.appendChild(inner); grid.appendChild(card);
-  document.getElementById('s_countBadge').innerHTML = '<b>'+entries.length+'</b> pair(s) on one page.';
-  pushHistory('single', entries.length+' pair(s) ('+headerText+')');
+  document.getElementById('s_countBadge').innerHTML = '<b>'+entries.length+'</b> row(s) on one page.';
+  pushHistory('single', entries.length+' row(s) ('+headerText+')');
 }
 
 /* ============================================================
    CSV EXPORT
 ============================================================ */
 function exportCSV(which){
-  const entries = which==='bulk' ? bulkEntriesCache : singleEntriesCache;
+  if(which==='bulk'){
+    const entries = bulkEntriesCache;
+    if(!entries || entries.length===0){ alert('Generate a preview first.'); return; }
+    let csv = 'Serial,Tracking ID,Flyer ID\n';
+    entries.forEach((e,i)=>{ csv += (i+1)+',"'+e.tracking+'","'+e.flyer+'"\n'; });
+    downloadCSV(csv, 'bulk_barcode_data.csv');
+    return;
+  }
+  const entries = singleEntriesCache;
   if(!entries || entries.length===0){ alert('Generate a preview first.'); return; }
-  let csv = 'Serial,Tracking ID,Flyer ID\n';
-  entries.forEach((e,i)=>{ csv += (i+1)+',"'+e.tracking+'","'+e.flyer+'"\n'; });
+  let csv = 'Serial,' + singleFieldsCache.map(f=>'"'+f+'"').join(',') + '\n';
+  entries.forEach((values,i)=>{
+    csv += (i+1)+','+ values.map(v=>'"'+(v||'')+'"').join(',') + '\n';
+  });
+  downloadCSV(csv, 'single_barcode_data.csv');
+}
+function downloadCSV(csv, filename){
   const blob = new Blob([csv], {type:'text/csv'});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = which+'_barcode_data.csv';
+  a.download = filename;
   a.click();
 }
 
