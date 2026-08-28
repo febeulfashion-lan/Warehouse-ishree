@@ -854,7 +854,18 @@ function renderSavedLetterheads(){
   const holder = document.getElementById('lh_savedList');
   if(templates.length===0){ holder.innerHTML=''; return; }
   holder.innerHTML = '<div class="hint" style="margin-bottom:6px;">Saved templates:</div>' +
-    templates.map(t=>`<button class="btn secondary small" style="margin:2px 4px 2px 0;" onclick="loadLetterheadTemplate(${t.id})">${t.company}</button>`).join('');
+    templates.map(t=>`
+      <span style="display:inline-flex; align-items:center; gap:2px; margin:2px 4px 2px 0;">
+        <button class="btn secondary small" style="border-radius:3px 0 0 3px;" onclick="loadLetterheadTemplate(${t.id})">${t.company}</button>
+        <button class="btn secondary small" style="border-radius:0 3px 3px 0; border-left:none; padding:7px 9px; color:var(--accent);" onclick="deleteLetterheadTemplate(${t.id})" title="Delete this template">✕</button>
+      </span>
+    `).join('');
+}
+function deleteLetterheadTemplate(id){
+  if(!confirm('Delete this saved template? This cannot be undone.')) return;
+  const templates = getLetterheadTemplates().filter(x=>x.id!==id);
+  setLetterheadTemplates(templates);
+  renderSavedLetterheads();
 }
 function loadLetterheadTemplate(id){
   const t = getLetterheadTemplates().find(x=>x.id===id);
