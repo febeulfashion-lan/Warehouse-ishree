@@ -286,6 +286,13 @@
       <div class="field"><label>Serials per page</label>
         <select id="b_perPage"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option></select>
       </div>
+      <div class="field"><label>Barcode size</label>
+        <div class="row2">
+          <div><span class="hint" style="margin-top:0;">Bar thickness</span><input id="b_barWidth" type="number" value="2" min="1" max="5" step="0.5"></div>
+          <div><span class="hint" style="margin-top:0;">Bar height (px)</span><input id="b_barHeight" type="number" value="55" min="20" max="120" step="5"></div>
+        </div>
+        <div class="hint">Smaller numbers = smaller printed barcode. Keep thickness at 2+ for reliable scanning.</div>
+      </div>
       <hr class="divider">
       <button class="btn block" onclick="generateBulkPages()">Generate preview</button>
       <div class="hint" id="b_countBadge" style="margin-top:14px;">No pages generated yet.</div>
@@ -319,6 +326,13 @@
       </div>
       <div id="s_templatePicker" style="margin-bottom:16px;"></div>
       <div class="field"><label>Starting serial No.</label><input id="s_startSerial" type="number" value="1" min="1"></div>
+      <div class="field"><label>Barcode size</label>
+        <div class="row2">
+          <div><span class="hint" style="margin-top:0;">Bar thickness</span><input id="s_barWidth" type="number" value="2" min="1" max="5" step="0.5"></div>
+          <div><span class="hint" style="margin-top:0;">Bar height (px)</span><input id="s_barHeight" type="number" value="55" min="20" max="120" step="5"></div>
+        </div>
+        <div class="hint">Smaller numbers = smaller printed barcode. Keep thickness at 2+ for reliable scanning.</div>
+      </div>
       <hr class="divider">
       <div class="field"><label>Boxes on each row (edit names, add/remove)</label></div>
       <div id="s_fieldsManager"></div>
@@ -561,18 +575,19 @@ function renderHistoryList(){
 /* ============================================================
    BARCODE HELPER
 ============================================================ */
-function makeBarcodeSVG(data){
+function makeBarcodeSVG(data, opts){
+  opts = opts || {};
   const ns = "http://www.w3.org/2000/svg";
   const svg = document.createElementNS(ns, "svg");
   if(!data){ return null; }
   try{
     JsBarcode(svg, data, {
       format:"CODE128",
-      lineColor:"#000000",   // pure black — max contrast, easier for scanners
-      width:3,                // thicker bars — more tolerant of smudging, ink bleed, low-res printers
-      height:80,               // taller bars — scanner has more margin for a crooked/angled scan
+      lineColor:"#000000",                    // pure black — max contrast, easier for scanners
+      width: opts.barWidth || 2,               // bar thickness — thicker = more scan-tolerant, thinner = smaller print
+      height: opts.barHeight || 55,            // bar height — taller = easier angled scans, but bigger print
       fontSize:14,
-      margin:10,                // bigger quiet zone (blank border) — many scan failures are from a cramped margin
+      margin: opts.barMargin != null ? opts.barMargin : 8,   // quiet zone — keep some blank border even when shrinking
       textMargin:4
     });
     svg.querySelectorAll('rect').forEach(r=>{ r.setAttribute('shape-rendering','crispEdges'); });
@@ -617,6 +632,7 @@ function generateBulkPages(){
   const hdrBg = document.getElementById('b_hdrBg').value, hdrFg = document.getElementById('b_hdrFg').value;
   const startSerial = parseInt(document.getElementById('b_startSerial').value) || 1;
   const perPage = parseInt(document.getElementById('b_perPage').value) || 1;
+  const barOpts = { barWidth: parseFloat(document.getElementById('b_barWidth').value)||2, barHeight: parseFloat(document.getElementById('b_barHeight').value)||55 };
   let sizeVal = document.getElementById('b_pageSize').value, w, h;
   if(sizeVal==='custom'){ w=parseFloat(document.getElementById('b_customW').value)||210; h=parseFloat(document.getElementById('b_customH').value)||297; }
   else { [w,h] = sizeVal.split(',').map(Number); }
@@ -643,7 +659,7 @@ function generateBulkPages(){
       [['TRACKING ID',entry.tracking],['FLYER ID',entry.flyer]].forEach(([label,val])=>{
         const col=document.createElement('div'); col.className='id-col';
         const lab=document.createElement('div'); lab.className='id-col-label'; lab.textContent=label; col.appendChild(lab);
-        const svg=makeBarcodeSVG(val);
+        const svg=makeBarcodeSVG(val, barOpts);
         if(svg){ col.appendChild(svg); } else { const n=document.createElement('div'); n.className='empty-note'; n.textContent='— no data —'; col.appendChild(n); }
         cols.appendChild(col);
       });
@@ -749,6 +765,7 @@ function generateSinglePreview(){
   const headerText = document.getElementById('s_headerText').value || '';
   const hdrBg = document.getElementById('s_hdrBg').value, hdrFg = document.getElementById('s_hdrFg').value;
   const startSerial = parseInt(document.getElementById('s_startSerial').value) || 1;
+  const barOpts = { barWidth: parseFloat(document.getElementById('s_barWidth').value)||2, barHeight: parseFloat(document.getElementById('s_barHeight').value)||55 };
 
   const card = document.createElement('div');
   card.className='page-card'; card.style.width='210mm'; card.style.minHeight='auto';
@@ -765,7 +782,7 @@ function generateSinglePreview(){
       const val = values[fi] || '';
       const col=document.createElement('div'); col.className='id-col';
       const lab=document.createElement('div'); lab.className='id-col-label'; lab.textContent=label; col.appendChild(lab);
-      const svg=makeBarcodeSVG(val);
+      const svg=makeBarcodeSVG(val, barOpts);
       if(svg){ col.appendChild(svg); } else { const n=document.createElement('div'); n.className='empty-note'; n.textContent='— no data —'; col.appendChild(n); }
       cols.appendChild(col);
     });
