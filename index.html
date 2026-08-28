@@ -288,10 +288,29 @@
       </div>
       <div class="field"><label>Barcode size</label>
         <div class="row2">
-          <div><span class="hint" style="margin-top:0;">Bar thickness</span><input id="b_barWidth" type="number" value="2" min="1" max="5" step="0.5"></div>
-          <div><span class="hint" style="margin-top:0;">Bar height (px)</span><input id="b_barHeight" type="number" value="55" min="20" max="120" step="5"></div>
+          <div><span class="hint" style="margin-top:0;">Bar thickness</span><input id="b_barWidth" type="number" value="2" min="0.5" max="5" step="0.25"></div>
+          <div><span class="hint" style="margin-top:0;">Bar height (px)</span><input id="b_barHeight" type="number" value="55" min="15" max="120" step="5"></div>
         </div>
-        <div class="hint">Smaller numbers = smaller printed barcode. Keep thickness at 2+ for reliable scanning.</div>
+        <div class="hint">Smaller numbers = smaller printed barcode. Very thin (below 1) may not scan reliably.</div>
+      </div>
+      <div class="field"><label>Barcode format</label>
+        <select id="b_barFormat">
+          <option value="CODE128">CODE128 (default — any text/numbers)</option>
+          <option value="CODE39">CODE39</option>
+          <option value="EAN13">EAN-13 (13 digits)</option>
+          <option value="EAN8">EAN-8 (8 digits)</option>
+          <option value="UPC">UPC-A (12 digits)</option>
+          <option value="ITF14">ITF-14 (14 digits)</option>
+          <option value="codabar">Codabar</option>
+          <option value="pharmacode">Pharmacode (number)</option>
+        </select>
+        <div class="hint">If a value doesn't match the format's rules (e.g. letters in EAN-13), that barcode will show "no data".</div>
+      </div>
+      <div class="field"><label>Column order</label>
+        <select id="b_columnOrder">
+          <option value="normal">Tracking ID first, then Flyer ID</option>
+          <option value="swap">Flyer ID first, then Tracking ID</option>
+        </select>
       </div>
       <hr class="divider">
       <button class="btn block" onclick="generateBulkPages()">Generate preview</button>
@@ -328,13 +347,25 @@
       <div class="field"><label>Starting serial No.</label><input id="s_startSerial" type="number" value="1" min="1"></div>
       <div class="field"><label>Barcode size</label>
         <div class="row2">
-          <div><span class="hint" style="margin-top:0;">Bar thickness</span><input id="s_barWidth" type="number" value="2" min="1" max="5" step="0.5"></div>
-          <div><span class="hint" style="margin-top:0;">Bar height (px)</span><input id="s_barHeight" type="number" value="55" min="20" max="120" step="5"></div>
+          <div><span class="hint" style="margin-top:0;">Bar thickness</span><input id="s_barWidth" type="number" value="2" min="0.5" max="5" step="0.25"></div>
+          <div><span class="hint" style="margin-top:0;">Bar height (px)</span><input id="s_barHeight" type="number" value="55" min="15" max="120" step="5"></div>
         </div>
-        <div class="hint">Smaller numbers = smaller printed barcode. Keep thickness at 2+ for reliable scanning.</div>
+        <div class="hint">Smaller numbers = smaller printed barcode. Very thin (below 1) may not scan reliably.</div>
+      </div>
+      <div class="field"><label>Barcode format</label>
+        <select id="s_barFormat">
+          <option value="CODE128">CODE128 (default — any text/numbers)</option>
+          <option value="CODE39">CODE39</option>
+          <option value="EAN13">EAN-13 (13 digits)</option>
+          <option value="EAN8">EAN-8 (8 digits)</option>
+          <option value="UPC">UPC-A (12 digits)</option>
+          <option value="ITF14">ITF-14 (14 digits)</option>
+          <option value="codabar">Codabar</option>
+          <option value="pharmacode">Pharmacode (number)</option>
+        </select>
       </div>
       <hr class="divider">
-      <div class="field"><label>Boxes on each row (edit names, add/remove)</label></div>
+      <div class="field"><label>Boxes on each row (edit names, add/remove, reorder)</label></div>
       <div id="s_fieldsManager"></div>
       <div class="btn-row" style="margin-bottom:6px;">
         <button class="btn secondary small" onclick="addField()">+ Add box</button>
@@ -582,7 +613,7 @@ function makeBarcodeSVG(data, opts){
   if(!data){ return null; }
   try{
     JsBarcode(svg, data, {
-      format:"CODE128",
+      format: opts.format || "CODE128",
       lineColor:"#000000",                    // pure black — max contrast, easier for scanners
       width: opts.barWidth || 2,               // bar thickness — thicker = more scan-tolerant, thinner = smaller print
       height: opts.barHeight || 55,            // bar height — taller = easier angled scans, but bigger print
@@ -632,7 +663,8 @@ function generateBulkPages(){
   const hdrBg = document.getElementById('b_hdrBg').value, hdrFg = document.getElementById('b_hdrFg').value;
   const startSerial = parseInt(document.getElementById('b_startSerial').value) || 1;
   const perPage = parseInt(document.getElementById('b_perPage').value) || 1;
-  const barOpts = { barWidth: parseFloat(document.getElementById('b_barWidth').value)||2, barHeight: parseFloat(document.getElementById('b_barHeight').value)||55 };
+  const barOpts = { barWidth: parseFloat(document.getElementById('b_barWidth').value)||2, barHeight: parseFloat(document.getElementById('b_barHeight').value)||55, format: document.getElementById('b_barFormat').value };
+  const columnOrder = document.getElementById('b_columnOrder').value;
   let sizeVal = document.getElementById('b_pageSize').value, w, h;
   if(sizeVal==='custom'){ w=parseFloat(document.getElementById('b_customW').value)||210; h=parseFloat(document.getElementById('b_customH').value)||297; }
   else { [w,h] = sizeVal.split(',').map(Number); }
@@ -656,7 +688,8 @@ function generateBulkPages(){
       const block = document.createElement('div'); block.className='pair-block';
       const serialLine=document.createElement('div'); serialLine.className='serial-line'; serialLine.textContent='Serial No: '+serialNo; block.appendChild(serialLine);
       const cols=document.createElement('div'); cols.className='id-cols';
-      [['TRACKING ID',entry.tracking],['FLYER ID',entry.flyer]].forEach(([label,val])=>{
+      const columns = columnOrder==='swap' ? [['FLYER ID',entry.flyer],['TRACKING ID',entry.tracking]] : [['TRACKING ID',entry.tracking],['FLYER ID',entry.flyer]];
+      columns.forEach(([label,val])=>{
         const col=document.createElement('div'); col.className='id-col';
         const lab=document.createElement('div'); lab.className='id-col-label'; lab.textContent=label; col.appendChild(lab);
         const svg=makeBarcodeSVG(val, barOpts);
@@ -691,6 +724,10 @@ function renderFieldsManager(){
   const holder = document.getElementById('s_fieldsManager');
   holder.innerHTML = singleFields.map((label,i)=>`
     <div style="display:flex; gap:6px; margin-bottom:8px; align-items:center;">
+      <div style="display:flex; flex-direction:column; gap:1px;">
+        <button class="remove-pair" style="padding:1px 6px; font-size:11px;" onclick="moveFieldUp(${i})" ${i===0?'disabled':''} title="Move up">▲</button>
+        <button class="remove-pair" style="padding:1px 6px; font-size:11px;" onclick="moveFieldDown(${i})" ${i===singleFields.length-1?'disabled':''} title="Move down">▼</button>
+      </div>
       <input type="text" value="${label.replace(/"/g,'&quot;')}" data-field-idx="${i}" class="s_field_label" style="flex:1; border:1px solid var(--line); background:var(--paper); padding:8px 9px; border-radius:3px; font-family:var(--sans); font-size:12.5px;">
       ${singleFields.length>1 ? `<button class="remove-pair" onclick="removeField(${i})" title="Remove this box">✕</button>` : ''}
     </div>
@@ -702,6 +739,18 @@ function renderFieldsManager(){
     });
   });
   document.getElementById('s_fieldsSavedNote').textContent = '';
+}
+function moveFieldUp(idx){
+  if(idx<=0) return;
+  [singleFields[idx-1], singleFields[idx]] = [singleFields[idx], singleFields[idx-1]];
+  renderFieldsManager();
+  renderPairsHolder();
+}
+function moveFieldDown(idx){
+  if(idx>=singleFields.length-1) return;
+  [singleFields[idx+1], singleFields[idx]] = [singleFields[idx], singleFields[idx+1]];
+  renderFieldsManager();
+  renderPairsHolder();
 }
 function addField(){
   singleFields.push('NEW BOX');
@@ -765,7 +814,7 @@ function generateSinglePreview(){
   const headerText = document.getElementById('s_headerText').value || '';
   const hdrBg = document.getElementById('s_hdrBg').value, hdrFg = document.getElementById('s_hdrFg').value;
   const startSerial = parseInt(document.getElementById('s_startSerial').value) || 1;
-  const barOpts = { barWidth: parseFloat(document.getElementById('s_barWidth').value)||2, barHeight: parseFloat(document.getElementById('s_barHeight').value)||55 };
+  const barOpts = { barWidth: parseFloat(document.getElementById('s_barWidth').value)||2, barHeight: parseFloat(document.getElementById('s_barHeight').value)||55, format: document.getElementById('s_barFormat').value };
 
   const card = document.createElement('div');
   card.className='page-card'; card.style.width='210mm'; card.style.minHeight='auto';
