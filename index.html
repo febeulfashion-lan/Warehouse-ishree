@@ -148,7 +148,22 @@
   .history-item .h-type{ display:inline-block; background:var(--blue); color:#fff; font-size:10px; padding:2px 8px; border-radius:10px; margin-right:8px; text-transform:uppercase; letter-spacing:.04em; }
   .history-item .h-time{ font-family:var(--mono); font-size:11px; color:#8a8471; margin-top:4px; }
 
-  /* ---- Auth modal ---- */
+  /* ---- Login gate ---- */
+  .auth-gate{
+    position:fixed; inset:0; z-index:100;
+    background:var(--ink);
+    display:flex; align-items:center; justify-content:center;
+  }
+  .auth-gate.hidden{ display:none; }
+  .gate-box{
+    background:var(--panel); border-radius:6px; padding:34px 30px;
+    width:340px; max-width:90vw;
+  }
+  .gate-brand{ font-family:var(--mono); font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:var(--accent); margin-bottom:6px; text-align:center; }
+  .gate-box h2{ margin:0 0 4px; font-size:19px; text-align:center; }
+  .gate-box .sub{ text-align:center; margin-bottom:20px; }
+
+  /* ---- Auth modal (legacy, unused but harmless) ---- */
   .modal-backdrop{ display:none; position:fixed; inset:0; background:rgba(20,18,12,.5); z-index:50; align-items:center; justify-content:center; }
   .modal-backdrop.open{ display:flex; }
   .modal{ background:#fff; border-radius:6px; padding:26px; width:340px; max-width:90vw; }
@@ -176,6 +191,22 @@
 </style>
 </head>
 <body>
+
+<!-- ===================== LOGIN GATE (shown until signed in) ===================== -->
+<div class="auth-gate" id="authGate">
+  <div class="gate-box">
+    <div class="gate-brand">LABEL PRESS</div>
+    <h2>Sign in to continue</h2>
+    <div class="sub" id="gateStatus">Enter your email and password.</div>
+    <div class="field"><label>Email</label><input id="gate_email" type="email" placeholder="you@example.com"></div>
+    <div class="field"><label>Password</label><input id="gate_password" type="password" placeholder="Your password"></div>
+    <button class="btn block" id="gateSubmitBtn" onclick="submitGateAuth()">Sign in</button>
+    <div class="error-msg" id="gateError"></div>
+  </div>
+</div>
+
+<!-- ===================== MAIN APP (hidden until signed in) ===================== -->
+<div id="appShell" style="display:none;">
 
 <div class="topbar">
   <div class="brand">LABEL PRESS</div>
@@ -352,20 +383,9 @@
   <div class="history-list" id="historyList"></div>
 </div>
 
-<!-- ===================== AUTH MODAL ===================== -->
-<div class="modal-backdrop" id="authModal">
-  <div class="modal">
-    <button class="modal-close" onclick="closeAuthModal()">×</button>
-    <h2 id="authTitle">Sign in</h2>
-    <div class="field"><label>Email</label><input id="auth_email" type="email" placeholder="you@example.com"></div>
-    <div class="field"><label>Password</label><input id="auth_password" type="password" placeholder="Your password"></div>
-    <button class="btn block" id="authSubmitBtn" onclick="submitAuth()">Sign in</button>
-    <div class="error-msg" id="authError"></div>
-    <div class="auth-note">Secured by Firebase Authentication.</div>
-  </div>
-</div>
+</div><!-- /appShell -->
 
-<!-- Firebase (real cross-device sign in) -->
+<!-- Firebase (real, gated sign in) -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
   import {
@@ -389,7 +409,7 @@
 
   onAuthStateChanged(auth, (user) => {
     window.__fbCurrentUser = user;
-    if (window.renderAuthArea) window.renderAuthArea();
+    if (window.onAuthResolved) window.onAuthResolved(user);
   });
 </script>
 
@@ -427,30 +447,35 @@ function printView(name){
 }
 
 /* ============================================================
-   AUTH (Firebase Authentication — real, cross-device)
+   AUTH (Firebase Authentication — gates the whole site)
 ============================================================ */
 function getCurrentUser(){ return window.__fbCurrentUser ? window.__fbCurrentUser.email : null; }
+
+// Called once Firebase resolves whether someone is signed in or not.
+function onAuthResolved(user){
+  const gate = document.getElementById('authGate');
+  const shell = document.getElementById('appShell');
+  if(user){
+    gate.classList.add('hidden');
+    shell.style.display = 'block';
+    renderAuthArea();
+  } else {
+    shell.style.display = 'none';
+    gate.classList.remove('hidden');
+    document.getElementById('gate_email').value = '';
+    document.getElementById('gate_password').value = '';
+    document.getElementById('gateError').style.display = 'none';
+    const btn = document.getElementById('gateSubmitBtn');
+    btn.disabled = false; btn.textContent = 'Sign in';
+  }
+}
+window.onAuthResolved = onAuthResolved;
 
 function renderAuthArea(){
   const user = getCurrentUser();
   const area = document.getElementById('authArea');
-  if(user){
-    area.innerHTML = '<span style="margin-right:10px;">👤 '+user+'</span><button class="auth-btn ghost" onclick="signOut()">Log out</button>';
-  } else {
-    area.innerHTML = '<button class="auth-btn" onclick="openAuthModal()">Sign in</button>';
-  }
+  area.innerHTML = '<span style="margin-right:10px;">👤 '+user+'</span><button class="auth-btn ghost" onclick="signOut()">Log out</button>';
 }
-window.renderAuthArea = renderAuthArea;
-
-function openAuthModal(){
-  document.getElementById('authModal').classList.add('open');
-  document.getElementById('authError').style.display='none';
-  document.getElementById('auth_email').value = '';
-  document.getElementById('auth_password').value = '';
-  const btn = document.getElementById('authSubmitBtn');
-  btn.disabled = false; btn.textContent = 'Sign in';
-}
-function closeAuthModal(){ document.getElementById('authModal').classList.remove('open'); }
 
 function friendlyAuthError(code){
   const map = {
@@ -463,10 +488,10 @@ function friendlyAuthError(code){
   return map[code] || 'Something went wrong. Please try again.';
 }
 
-function submitAuth(){
-  const email = document.getElementById('auth_email').value.trim();
-  const password = document.getElementById('auth_password').value;
-  const errEl = document.getElementById('authError');
+function submitGateAuth(){
+  const email = document.getElementById('gate_email').value.trim();
+  const password = document.getElementById('gate_password').value;
+  const errEl = document.getElementById('gateError');
   errEl.style.display='none';
   if(!email || !password){ errEl.textContent='Enter an email and password.'; errEl.style.display='block'; return; }
 
@@ -477,23 +502,26 @@ function submitAuth(){
   }
 
   const { auth, signInWithEmailAndPassword } = window.__fb;
-  const btn = document.getElementById('authSubmitBtn');
+  const btn = document.getElementById('gateSubmitBtn');
   btn.disabled = true; btn.textContent = 'Signing in…';
 
   signInWithEmailAndPassword(auth, email, password).then(()=>{
-    btn.disabled = false; btn.textContent = 'Sign in';
-    document.getElementById('auth_password').value = '';
-    closeAuthModal();
-    renderAuthArea();
+    // onAuthResolved() fires automatically and reveals the app
   }).catch((err)=>{
     btn.disabled = false; btn.textContent = 'Sign in';
     errEl.textContent = friendlyAuthError(err.code);
     errEl.style.display='block';
   });
 }
-function signOut(){ window.__fb.fbSignOut(window.__fb.auth).then(renderAuthArea); }
+window.submitGateAuth = submitGateAuth;
+
+// Allow pressing Enter in the gate password field
+document.getElementById('gate_password').addEventListener('keydown', (e)=>{
+  if(e.key === 'Enter') submitGateAuth();
+});
+
+function signOut(){ window.__fb.fbSignOut(window.__fb.auth); }
 window.signOut = signOut;
-renderAuthArea();
 
 /* ============================================================
    HISTORY
