@@ -719,6 +719,27 @@ function setFieldsConfig(f){ localStorage.setItem('lp_single_fields', JSON.strin
 
 let singleFields = getFieldsConfig();
 let pairCount = 2;
+let pairValues = [];   // pairValues[pairIndex][fieldIndex] = typed value — survives re-renders
+
+function ensurePairValuesShape(){
+  pairValues.length = pairCount;
+  for(let p=0;p<pairCount;p++){
+    if(!pairValues[p]) pairValues[p] = [];
+    pairValues[p].length = singleFields.length;
+    for(let f=0;f<singleFields.length;f++){
+      if(pairValues[p][f]===undefined) pairValues[p][f] = '';
+    }
+  }
+}
+
+function captureCurrentValues(){
+  // pull whatever is currently typed in the DOM into pairValues before any re-render
+  document.querySelectorAll('.s_field_input').forEach(inp=>{
+    const p = parseInt(inp.dataset.pair), f = parseInt(inp.dataset.field);
+    if(!pairValues[p]) pairValues[p] = [];
+    pairValues[p][f] = inp.value;
+  });
+}
 
 function renderFieldsManager(){
   const holder = document.getElementById('s_fieldsManager');
@@ -742,24 +763,32 @@ function renderFieldsManager(){
 }
 function moveFieldUp(idx){
   if(idx<=0) return;
+  captureCurrentValues();
   [singleFields[idx-1], singleFields[idx]] = [singleFields[idx], singleFields[idx-1]];
+  pairValues.forEach(row=>{ if(row) [row[idx-1], row[idx]] = [row[idx], row[idx-1]]; });
   renderFieldsManager();
   renderPairsHolder();
 }
 function moveFieldDown(idx){
   if(idx>=singleFields.length-1) return;
+  captureCurrentValues();
   [singleFields[idx+1], singleFields[idx]] = [singleFields[idx], singleFields[idx+1]];
+  pairValues.forEach(row=>{ if(row) [row[idx+1], row[idx]] = [row[idx], row[idx+1]]; });
   renderFieldsManager();
   renderPairsHolder();
 }
 function addField(){
+  captureCurrentValues();
   singleFields.push('NEW BOX');
+  pairValues.forEach(row=>{ if(row) row.push(''); });
   renderFieldsManager();
   renderPairsHolder();
 }
 function removeField(idx){
   if(singleFields.length<=1) return;
+  captureCurrentValues();
   singleFields.splice(idx,1);
+  pairValues.forEach(row=>{ if(row) row.splice(idx,1); });
   renderFieldsManager();
   renderPairsHolder();
 }
@@ -770,23 +799,45 @@ function saveFieldsTemplate(){
 renderFieldsManager();
 
 function renderPairsHolder(){
+  ensurePairValuesShape();
   const holder = document.getElementById('s_pairsHolder');
   holder.innerHTML = '';
   for(let i=0;i<pairCount;i++){
     const row = document.createElement('div'); row.className='pair-row';
-    const fieldsHtml = singleFields.map((label,fi)=>`
-      <div class="field" style="margin-bottom:8px;"><label>${label}</label><input class="s_field_input" type="text" data-pair="${i}" data-field="${fi}"></div>
-    `).join('');
+    const fieldsHtml = singleFields.map((label,fi)=>{
+      const val = (pairValues[i] && pairValues[i][fi]) ? pairValues[i][fi].replace(/"/g,'&quot;') : '';
+      return `<div class="field" style="margin-bottom:8px;"><label>${label}</label><input class="s_field_input" type="text" value="${val}" data-pair="${i}" data-field="${fi}"></div>`;
+    }).join('');
     row.innerHTML = `
       <div class="pair-row-head"><span>Row ${i+1}</span>${pairCount>1 ? `<button class="remove-pair" onclick="removePair(${i})">Remove</button>` : ''}</div>
       ${fieldsHtml}
     `;
     holder.appendChild(row);
   }
+  document.querySelectorAll('.s_field_input').forEach(inp=>{
+    inp.addEventListener('input', (e)=>{
+      const p = parseInt(e.target.dataset.pair), f = parseInt(e.target.dataset.field);
+      if(!pairValues[p]) pairValues[p] = [];
+      pairValues[p][f] = e.target.value;
+    });
+  });
   document.getElementById('s_addPairBtn').style.display = pairCount>=4 ? 'none' : 'block';
 }
-function addPair(){ if(pairCount<4){ pairCount++; renderPairsHolder(); } }
-function removePair(idx){ if(pairCount>1){ pairCount--; renderPairsHolder(); } }
+function addPair(){
+  if(pairCount<4){
+    captureCurrentValues();
+    pairCount++;
+    renderPairsHolder();
+  }
+}
+function removePair(idx){
+  if(pairCount>1){
+    captureCurrentValues();
+    pairValues.splice(idx,1);
+    pairCount--;
+    renderPairsHolder();
+  }
+}
 renderPairsHolder();
 
 let singleEntriesCache = [];
