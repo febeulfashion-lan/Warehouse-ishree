@@ -284,7 +284,8 @@
         <div class="field"><label>Height (mm)</label><input id="b_customH" type="number" value="297"></div>
       </div>
       <div class="field"><label>Serials per page</label>
-        <select id="b_perPage"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option></select>
+        <input id="b_perPage" type="number" value="1" min="1" max="100">
+        <div class="hint">1 = each serial on its own page. Enter any number (e.g. 2, 5, 10...) to group that many serials on one page.</div>
       </div>
       <div class="field"><label>Barcode size</label>
         <div class="row2">
@@ -346,13 +347,8 @@
       <div id="s_templatePicker" style="margin-bottom:16px;"></div>
       <div class="field"><label>Starting serial No.</label><input id="s_startSerial" type="number" value="1" min="1"></div>
       <div class="field"><label>Rows per page</label>
-        <select id="s_rowsPerPage">
-          <option value="1">1 (one barcode pair per page)</option>
-          <option value="2">2 per page</option>
-          <option value="3">3 per page</option>
-          <option value="4" selected>4 — all together on one page</option>
-        </select>
-        <div class="hint">Choose 1 if you want each row printed on its own separate page instead of stacked together.</div>
+        <input id="s_rowsPerPage" type="number" value="12" min="1" max="1000">
+        <div class="hint">Enter 1 if you want each row on its own separate page, or a higher number to group several rows per page.</div>
       </div>
       <div class="field"><label>Barcode size</label>
         <div class="row2">
@@ -383,7 +379,7 @@
       <div class="hint" id="s_fieldsSavedNote"></div>
       <hr class="divider">
       <div id="s_pairsHolder"></div>
-      <button class="btn secondary small block" onclick="addPair()" id="s_addPairBtn">+ Add row (max 4)</button>
+      <button class="btn secondary small block" onclick="addPair()" id="s_addPairBtn">+ Add row (max 12)</button>
       <hr class="divider">
       <button class="btn block" onclick="generateSinglePreview()">Generate preview</button>
     </div>
@@ -832,10 +828,10 @@ function renderPairsHolder(){
       pairValues[p][f] = e.target.value;
     });
   });
-  document.getElementById('s_addPairBtn').style.display = pairCount>=4 ? 'none' : 'block';
+  document.getElementById('s_addPairBtn').style.display = pairCount>=12 ? 'none' : 'block';
 }
 function addPair(){
-  if(pairCount<4){
+  if(pairCount<12){
     captureCurrentValues();
     pairCount++;
     renderPairsHolder();
@@ -877,7 +873,7 @@ function generateSinglePreview(){
   const hdrBg = document.getElementById('s_hdrBg').value, hdrFg = document.getElementById('s_hdrFg').value;
   const startSerial = parseInt(document.getElementById('s_startSerial').value) || 1;
   const barOpts = { barWidth: parseFloat(document.getElementById('s_barWidth').value)||2, barHeight: parseFloat(document.getElementById('s_barHeight').value)||55, format: document.getElementById('s_barFormat').value };
-  const rowsPerPage = parseInt(document.getElementById('s_rowsPerPage').value) || 4;
+  const rowsPerPage = parseInt(document.getElementById('s_rowsPerPage').value) || 12;
 
   const pages = [];
   for(let i=0;i<entries.length;i+=rowsPerPage){ pages.push(entries.slice(i,i+rowsPerPage)); }
