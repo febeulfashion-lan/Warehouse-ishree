@@ -345,6 +345,15 @@
       </div>
       <div id="s_templatePicker" style="margin-bottom:16px;"></div>
       <div class="field"><label>Starting serial No.</label><input id="s_startSerial" type="number" value="1" min="1"></div>
+      <div class="field"><label>Rows per page</label>
+        <select id="s_rowsPerPage">
+          <option value="1">1 (one barcode pair per page)</option>
+          <option value="2">2 per page</option>
+          <option value="3">3 per page</option>
+          <option value="4" selected>4 — all together on one page</option>
+        </select>
+        <div class="hint">Choose 1 if you want each row printed on its own separate page instead of stacked together.</div>
+      </div>
       <div class="field"><label>Barcode size</label>
         <div class="row2">
           <div><span class="hint" style="margin-top:0;">Bar thickness</span><input id="s_barWidth" type="number" value="2" min="0.5" max="5" step="0.25"></div>
@@ -382,6 +391,8 @@
       <div class="toolbar">
         <div class="toolbar-left" id="s_countBadge">No preview yet.</div>
         <div class="btn-row">
+          <button class="btn secondary small" onclick="setAllSingle(true)">Select all</button>
+          <button class="btn secondary small" onclick="setAllSingle(false)">Clear all</button>
           <button class="btn secondary small" onclick="exportCSV('single')">Export CSV</button>
           <button class="btn small" onclick="printView('single')">Download PDF</button>
         </div>
@@ -866,32 +877,47 @@ function generateSinglePreview(){
   const hdrBg = document.getElementById('s_hdrBg').value, hdrFg = document.getElementById('s_hdrFg').value;
   const startSerial = parseInt(document.getElementById('s_startSerial').value) || 1;
   const barOpts = { barWidth: parseFloat(document.getElementById('s_barWidth').value)||2, barHeight: parseFloat(document.getElementById('s_barHeight').value)||55, format: document.getElementById('s_barFormat').value };
+  const rowsPerPage = parseInt(document.getElementById('s_rowsPerPage').value) || 4;
 
-  const card = document.createElement('div');
-  card.className='page-card'; card.style.width='210mm'; card.style.minHeight='auto';
-  const inner=document.createElement('div'); inner.className='page-inner';
-  const hdr=document.createElement('div'); hdr.className='label-header';
-  hdr.style.setProperty('--hdr-bg',hdrBg); hdr.style.setProperty('--hdr-fg',hdrFg); hdr.textContent=headerText;
-  inner.appendChild(hdr);
-  entries.forEach((values,i)=>{
-    const block=document.createElement('div'); block.className='pair-block';
-    const serialLine=document.createElement('div'); serialLine.className='serial-line'; serialLine.textContent='Serial No: '+(startSerial+i); block.appendChild(serialLine);
-    const cols=document.createElement('div'); cols.className='id-cols';
-    cols.style.gridTemplateColumns = `repeat(${singleFields.length}, 1fr)`;
-    singleFields.forEach((label,fi)=>{
-      const val = values[fi] || '';
-      const col=document.createElement('div'); col.className='id-col';
-      const lab=document.createElement('div'); lab.className='id-col-label'; lab.textContent=label; col.appendChild(lab);
-      const svg=makeBarcodeSVG(val, barOpts);
-      if(svg){ col.appendChild(svg); } else { const n=document.createElement('div'); n.className='empty-note'; n.textContent='— no data —'; col.appendChild(n); }
-      cols.appendChild(col);
+  const pages = [];
+  for(let i=0;i<entries.length;i+=rowsPerPage){ pages.push(entries.slice(i,i+rowsPerPage)); }
+
+  pages.forEach((pageEntries, pIdx)=>{
+    const card = document.createElement('div');
+    card.className='page-card'; card.style.width='210mm'; card.style.minHeight='auto';
+    const tag=document.createElement('div'); tag.className='page-num-tag'; tag.textContent='Page '+(pIdx+1); card.appendChild(tag);
+    const cb=document.createElement('input'); cb.type='checkbox'; cb.className='page-select'; cb.checked=true;
+    cb.addEventListener('change', ()=>card.classList.toggle('deselected', !cb.checked));
+    card.appendChild(cb);
+    const inner=document.createElement('div'); inner.className='page-inner';
+    const hdr=document.createElement('div'); hdr.className='label-header';
+    hdr.style.setProperty('--hdr-bg',hdrBg); hdr.style.setProperty('--hdr-fg',hdrFg); hdr.textContent=headerText;
+    inner.appendChild(hdr);
+    pageEntries.forEach((values,eIdx)=>{
+      const serialNo = startSerial + pIdx*rowsPerPage + eIdx;
+      const block=document.createElement('div'); block.className='pair-block';
+      const serialLine=document.createElement('div'); serialLine.className='serial-line'; serialLine.textContent='Serial No: '+serialNo; block.appendChild(serialLine);
+      const cols=document.createElement('div'); cols.className='id-cols';
+      cols.style.gridTemplateColumns = `repeat(${singleFields.length}, 1fr)`;
+      singleFields.forEach((label,fi)=>{
+        const val = values[fi] || '';
+        const col=document.createElement('div'); col.className='id-col';
+        const lab=document.createElement('div'); lab.className='id-col-label'; lab.textContent=label; col.appendChild(lab);
+        const svg=makeBarcodeSVG(val, barOpts);
+        if(svg){ col.appendChild(svg); } else { const n=document.createElement('div'); n.className='empty-note'; n.textContent='— no data —'; col.appendChild(n); }
+        cols.appendChild(col);
+      });
+      block.appendChild(cols); inner.appendChild(block);
     });
-    block.appendChild(cols); inner.appendChild(block);
+    inner.appendChild(pageFooter());
+    card.appendChild(inner); grid.appendChild(card);
   });
-  inner.appendChild(pageFooter());
-  card.appendChild(inner); grid.appendChild(card);
-  document.getElementById('s_countBadge').innerHTML = '<b>'+entries.length+'</b> row(s) on one page.';
-  pushHistory('single', entries.length+' row(s) ('+headerText+')');
+  document.getElementById('s_countBadge').innerHTML = '<b>'+entries.length+'</b> row(s) → <b>'+pages.length+'</b> page(s).';
+  pushHistory('single', entries.length+' row(s), '+pages.length+' page(s) ('+headerText+')');
+}
+
+function setAllSingle(state){
+  document.querySelectorAll('#s_sheetGrid .page-select').forEach(cb=>{ cb.checked=state; cb.dispatchEvent(new Event('change')); });
 }
 
 /* ============================================================
